@@ -2,7 +2,7 @@ name: Go
 
 on:
   push:
-    branches: [ Aula_1 ]
+    branches: [ '*' ]      # Aceita qualquer branch como válida
   pull_request:
     branches: [ Aula_1 ]
 
@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go_version: ['1.18', '1.17', '>=1.18']
+        go_version: ['1.18', '1.17', '>=1.18']       # Testa em mais de uma versão do Go
     steps:
     - uses: actions/checkout@v3
 
