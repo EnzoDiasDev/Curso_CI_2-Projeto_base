@@ -5,6 +5,7 @@ on:
     branches: [ '*' ]      # Aceita qualquer branch como válida
   pull_request:
     branches: [ '*' ]
+  workflow_dispatch:       # Permite rodar o workflow manualmente pela aba Actions
 
 jobs:
 
