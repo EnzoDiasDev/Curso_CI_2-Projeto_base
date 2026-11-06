@@ -59,3 +59,7 @@ jobs:
     secrets:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+  
+  docker-publish:
+    needs: docker
+    uses: ./.github/workflows/Docker-publish.yml

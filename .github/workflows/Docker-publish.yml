@@ -3,12 +3,13 @@ name: Docker-publish                      # Nome do workflow, exibido na aba Act
 on:                                       # Eventos que disparam o workflow
   # schedule:                             # Execução agendada
   #  - cron: '16 0 * * *'                 # Todo dia às 00:16 UTC (minuto hora dia mês dia-da-semana)
-  push:                                   # Disparado quando alguém faz push
-    branches: [ "main" ]                  # ...mas só se for na branch main
-    # Publish semver tags as releases.
-    tags: [ 'v*.*.*' ]                    # Também dispara em tags de versão, como v1.0.0
-  pull_request:                           # Disparado em pull requests
-    branches: [ "main" ]                  # ...que tenham a main como branch de destino
+  # push:                                   # Disparado quando alguém faz push
+  #  branches: [ "main" ]                  # ...mas só se for na branch main
+  #  # Publish semver tags as releases.
+  #  tags: [ 'v*.*.*' ]                    # Também dispara em tags de versão, como v1.0.0
+  #pull_request:                           # Disparado em pull requests
+  #  branches: [ "main" ]                  # ...que tenham a main como branch de destino
+  workflow_call:
 
 env:                                      # Variáveis de ambiente disponíveis para todos os jobs do workflow
   # Use docker.io for Docker Hub if empty
