@@ -61,5 +61,21 @@ jobs:
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
   
   docker-publish:
-    needs: docker
+    if: github.ref == 'refs/heads/main'
+    # De onde vem refs/heads/main
+    # Ele vem do próprio Git, e o GitHub Actions só o expõe no **contexto** github.ref.
+    # No Git, branches, tags e outros ponteiros são guardados como referências (refs), que são arquivos dentro da pasta .git/refs/. O nome completo de uma ref inclui a pasta onde ela fica:
+      # O que é: Branch 'main' ==> Nome completo (ref): 'refs/heads/main' ==> Nome curto: 'main'
+      # O que é: Branch 'Aula_1' ==> Nome completo (ref): 'refs/heads/Aula_1' ==> Nome curto: 'Aula_1'
+      # O que é: Tag 'v1.0.0' ==> Nome completo (ref): 'refs/tag/v1.0.0' ==> Nome curto: 'v1.0.0'
+      # O que é: Pull request n5 ==> Nome completo (ref): 'refs/pull/5/merge' ==> Nome curto: '5/merge'
+    # No GitHub Actions, Cada execução recebe a ref que a disparou:
+      # - github.ref guarda o nome completo, como refs/heads/main.
+      # - github.ref_name guarda o nome curto, como main.
+      # - github.ref_type diz se é branch ou tag.
+
+    needs: build
     uses: ./.github/workflows/Docker-publish.yml
+    permissions:
+      contents: read
+      packages: write
