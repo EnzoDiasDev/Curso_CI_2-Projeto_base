@@ -98,13 +98,6 @@ jobs:
         # Optional. Default is 'true'
         #archive:
 
-  docker:
-    needs: build
-    uses: ./.github/workflows/Docker.yml
-    secrets:
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-
   docker-publish:
     if: github.ref == 'refs/heads/main'
     # De onde vem refs/heads/main
