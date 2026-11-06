@@ -50,7 +50,8 @@ jobs:
     - name: Build
       run: go build -v main.go
 
-    - uses: actions/upload-artifact@v7
+    - name: upload artifact
+      uses: actions/upload-artifact@v7
       with:
         # Name of the artifact to upload.
         # Optional. Default is 'artifact'
