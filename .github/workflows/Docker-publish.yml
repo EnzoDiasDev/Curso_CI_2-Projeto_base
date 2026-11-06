@@ -1,0 +1,98 @@
+name: Docker-publish                      # Nome do workflow, exibido na aba Actions do GitHub
+
+on:                                       # Eventos que disparam o workflow
+  # schedule:                             # Execução agendada
+  #  - cron: '16 0 * * *'                 # Todo dia às 00:16 UTC (minuto hora dia mês dia-da-semana)
+  push:                                   # Disparado quando alguém faz push
+    branches: [ "main" ]                  # ...mas só se for na branch main
+    # Publish semver tags as releases.
+    tags: [ 'v*.*.*' ]                    # Também dispara em tags de versão, como v1.0.0
+  pull_request:                           # Disparado em pull requests
+    branches: [ "main" ]                  # ...que tenham a main como branch de destino
+
+env:                                      # Variáveis de ambiente disponíveis para todos os jobs do workflow
+  # Use docker.io for Docker Hub if empty
+  REGISTRY: ghcr.io                       # Registry onde a imagem será publicada (GitHub Container Registry)
+  # github.repository as <account>/<repo>
+  IMAGE_NAME: ${{ github.repository }}    # Nome da imagem = usuário/repositório do GitHub
+
+
+jobs:                                     # Conjunto de jobs do workflow
+  publish:                                  # Nome (id) do job
+
+    runs-on: ubuntu-latest                # Máquina (runner) em que o job executa
+    permissions:                          # Permissões concedidas ao GITHUB_TOKEN neste job
+      contents: read                      # Ler o código do repositório
+      packages: write                     # Publicar a imagem no GitHub Packages (ghcr.io)
+      # This is used to complete the identity challenge
+      # with sigstore/fulcio when running outside of PRs.
+      id-token: write                     # Permite gerar um token de identidade (OIDC) usado na assinatura da imagem
+
+    steps:                                # Passos executados em sequência dentro do job
+      - name: Checkout repository         # Nome do step
+        uses: actions/checkout@v4         # Baixa o código do repositório para o runner
+
+      # Install the cosign tool except on PR
+      # https://github.com/sigstore/cosign-installer
+      - name: Install cosign                     # Nome do step
+        if: github.event_name != 'pull_request'  # Só roda quando o evento NÃO é um pull request
+        # Instala o cosign, ferramenta que assina imagens de container (fixada por hash do commit)
+        uses: sigstore/cosign-installer@59acb6260d9c0ba8f4a2f9d9b48431a222b68e20 #v3.5.0
+        with:                                    # Parâmetros da action
+          cosign-release: 'v2.2.4'               # Versão do cosign que será instalada
+
+      # Set up BuildKit Docker container builder to be able to build
+      # multi-platform images and export cache
+      # https://github.com/docker/setup-buildx-action
+      - name: Set up Docker Buildx               # Nome do step
+        # Configura o Buildx, o construtor de imagens do Docker (permite multi-plataforma e cache)
+        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
+
+      # Login against a Docker registry except on PR
+      # https://github.com/docker/login-action
+      - name: Log into registry ${{ env.REGISTRY }}  # Nome do step, mostrando o registry usado
+        if: github.event_name != 'pull_request'      # Só faz login quando não é pull request (PR não publica imagem)
+        # Faz login no registry para poder publicar a imagem
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        with:  # Parâmetros da action
+          registry: ${{ env.REGISTRY }}              # Registry no qual fazer login (ghcr.io)
+          username: ${{ github.actor }}              # Usuário do GitHub que disparou o workflow
+          password: ${{ secrets.GITHUB_TOKEN }}      # Token temporário gerado automaticamente pelo GitHub (não precisa criar)
+
+      # Extract metadata (tags, labels) for Docker
+      # https://github.com/docker/metadata-action
+      - name: Extract Docker metadata                        # Nome do step
+        id: meta                                             # Identificador usado para ler as saídas deste step depois (steps.meta.outputs)
+        # Gera automaticamente as tags e labels da imagem a partir do evento (branch, tag, PR...)
+        uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934 # v5.0.0
+        with:                                                # Parâmetros da action
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}  # Nome completo da imagem: ghcr.io/usuario/repositorio
+
+      # Build and push Docker image with Buildx (don't push on PR)
+      # https://github.com/docker/build-push-action
+      - name: Build and push Docker image                    # Nome do step
+        id: build-and-push                                   # Identificador para ler as saídas deste step (como o digest da imagem)
+        # Constrói a imagem a partir do Dockerfile e a publica no registry
+        uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
+        with:                                                # Parâmetros da action
+          context: .                                         # Pasta usada como contexto do build (raiz do repositório, onde fica o Dockerfile)
+          push: ${{ github.event_name != 'pull_request' }}   # Publica a imagem, exceto em pull requests (true/false)
+          tags: ${{ steps.meta.outputs.tags }}               # Tags geradas pelo step "meta"
+          labels: ${{ steps.meta.outputs.labels }}           # Labels (metadados) gerados pelo step "meta"
+          cache-from: type=gha                               # Reaproveita o cache de builds anteriores guardado no GitHub Actions
+          cache-to: type=gha,mode=max                        # Salva o cache deste build, incluindo todas as camadas intermediárias
+
+      # Sign the resulting Docker image digest except on PRs.
+      # This will only write to the public Rekor transparency log when the Docker
+      # repository is public to avoid leaking data.  If you would like to publish
+      # transparency data even for private images, pass --force to cosign below.
+      # https://github.com/sigstore/cosign
+      - name: Sign the published Docker image           # Nome do step
+        if: ${{ github.event_name != 'pull_request' }}  # Só assina quando não é pull request (só assina o que foi publicado)
+        env:                                            # Variáveis de ambiente apenas deste step
+          # https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-an-intermediate-environment-variable
+          TAGS: ${{ steps.meta.outputs.tags }}  # Tags da imagem, vindas do step "meta"
+          DIGEST: ${{ steps.build-and-push.outputs.digest }}  # Digest (hash único) da imagem publicada, vindo do step de build
+        # This step uses the identity token to provision an ephemeral certificate
+        # against the sigstore community Fulcio instance.
+        run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}  # Para cada tag, assina a imagem pelo digest com o cosign (--yes aceita sem perguntar)
